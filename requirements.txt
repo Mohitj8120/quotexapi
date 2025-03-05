@@ -1,0 +1,5 @@
+numpy
+pandas
+requests
+git+https://github.com/cleitonleonel/pyquotex.git
+git+https://github.com/cleitonleonel/quotexapi.git
