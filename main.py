@@ -17,6 +17,8 @@ class QuotexBot:
         """Fetch the list of available OTC assets."""
         assets = await self.client.get_all_assets()
         otc_assets = [asset for asset in assets if 'otc' in asset.lower()]  # Filter OTC assets
+        for index, asset in enumerate(otc_assets, start=1):
+            logging.info(f"{index}. {asset}")
         return otc_assets
 
     async def monitor_asset(self, asset):
