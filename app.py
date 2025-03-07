@@ -642,6 +642,23 @@ async def get_signal_data():
     client.close()
 
 
+async def run_strategy():
+    check_connect, message = await client.connect()
+    if check_connect:
+        def strategy(close_prices):
+            # Ensure there are enough prices to apply the strategy
+            if len(close_prices) < 2:
+                return False
+            # Define your strategy here
+            # Return True if the strategy conditions are met, otherwise return False
+            return close_prices[-1] > close_prices[-2]
+
+        await client.auto_trade(strategy)
+
+    print("Exiting...")
+
+    client.close()
+
 async def execute(argument):
     match argument:
         case "test_connection":
@@ -690,6 +707,8 @@ async def execute(argument):
             return await buy_pending()
         case "balance_refill":
             return await balance_refill()
+        case "run_strategy":
+            return await run_strategy()
         case "help":
             print(f"Use: {'./app' if getattr(sys, 'frozen', False) else 'python app.py'} <option>")
             return print(get_all_options())

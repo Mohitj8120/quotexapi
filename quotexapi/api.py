@@ -316,6 +316,14 @@ class QuotexAPI(object):
         """
         return GetHistory(self)
 
+    @property
+    def get_settings(self):
+        """Property for get Quotex http settings resource.
+        :returns: The instance of :class:`Settings
+            <quotexapi.http.settings.Settings>`.
+        """
+        return Settings(self)
+
     def send_http_request_v1(self, resource, method, data=None, params=None, headers=None):
         """Send http request to Quotex server.
 

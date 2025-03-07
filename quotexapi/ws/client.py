@@ -3,6 +3,7 @@ import json
 import time
 import logging
 import websocket
+from quotexapi.utils.indicators import TechnicalIndicators
 from .. import global_value
 
 logger = logging.getLogger(__name__)

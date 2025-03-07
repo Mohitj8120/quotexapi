@@ -11,7 +11,6 @@
 </a>
 </p>
 
-
 # About the PyQuotex Library
 
 This library was developed with the purpose of facilitating communication with the Quotex platform through WebSockets, enabling real-time data retrieval and the automation of operations. **It is important to note that this library is not a trading bot, nor does it intend to be**.
@@ -69,11 +68,9 @@ You can support this project by sending cryptocurrency to the addresses below. E
 
 Thank you for your support! 🚀
 
-
 ### Showcase
 
 https://github.com/user-attachments/assets/acaa0cbb-80c2-450c-9c8f-83fdbfedf0fa
-
 
 ### Clone and Install
 
@@ -85,7 +82,6 @@ cd pyquotex
 poetry install
 poetry run python app.py
 ```
-
 
 ### Install with poetry in your project
 
@@ -417,6 +413,7 @@ async def get_payout():
         print(asset_data)
 
     print("Exiting...")
+
     client.close()
 
 
