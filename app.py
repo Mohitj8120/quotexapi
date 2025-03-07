@@ -56,8 +56,8 @@ client = Quotex(
 )
 
 # Telegram bot setup
-TELEGRAM_BOT_TOKEN = "7562686726:AAH2pxBm1SAK7vgXK2TalTfeY8DqijunXFg"
-TELEGRAM_CHAT_ID = "7698113513"
+TELEGRAM_BOT_TOKEN = 
+TELEGRAM_CHAT_ID = 
 
 def send_telegram_message(message: str):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
