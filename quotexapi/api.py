@@ -423,15 +423,10 @@ class QuotexAPI(object):
             "origin": self.https_url,
             "host": f"ws2.{self.host}",
             "sslopt": {
-                "check_hostname": False,
-                "cert_reqs": ssl.CERT_NONE,
-                "ca_certs": cacert,
-                "context": ssl_context
+                "cert_reqs": ssl.CERT_NONE  # Disable SSL certificate verification
             },
             "reconnect": 5
         }
-        if platform.system() == "Linux":
-            payload["sslopt"]["ssl_version"] = ssl.PROTOCOL_TLS
         self.websocket_thread = threading.Thread(
             target=self.websocket.run_forever,
             kwargs=payload

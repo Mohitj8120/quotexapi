@@ -269,8 +269,6 @@ class Quotex:
             if self.api.account_type > 0 else self.api.account_balance.get("liveBalance")
         return float(f"{truncate(balance + self.get_profit(), 2):.2f}")
 
-    # Agregar al archivo stable_api.py dentro de la clase Quotex
-
     async def calculate_indicator(
             self, asset: str,
             indicator: str,
@@ -330,88 +328,28 @@ class Quotex:
                     "timestamps": timestamps[-len(values):] if values else []
                 }
 
-            # MACD
-            elif indicator == "MACD":
-                fast_period = params.get("fast_period", 12)
-                slow_period = params.get("slow_period", 26)
-                signal_period = params.get("signal_period", 9)
-                macd_data = indicators.calculate_macd(prices, fast_period, slow_period, signal_period)
-                macd_data["timeframe"] = timeframe
-                macd_data["timestamps"] = timestamps[-len(macd_data["macd"]):] if macd_data["macd"] else []
-                return macd_data
+            # Keltner Channel
+            elif indicator == "KELTNER":
+                ema_period = params.get("ema_period", 20)
+                atr_period = params.get("atr_period", 10)
+                multiplier = params.get("multiplier", 1)
+                kc_data = indicators.calculate_keltner_channel(prices, highs, lows, ema_period, atr_period, multiplier)
+                kc_data["timeframe"] = timeframe
+                kc_data["timestamps"] = timestamps[-len(kc_data["middle"]):] if kc_data["middle"] else []
+                return kc_data
 
-            # SMA
-            elif indicator == "SMA":
-                period = params.get("period", 20)
-                values = indicators.calculate_sma(prices, period)
+            # Moving Average
+            elif indicator == "MOVING_AVERAGE":
+                period = params.get("period", 10)
+                ma_type = params.get("ma_type", "SMA")
+                values = indicators.calculate_moving_average(prices, period, ma_type)
                 return {
-                    "sma": values,
+                    "moving_average": values,
                     "current": values[-1] if values else None,
                     "history_size": len(values),
                     "timeframe": timeframe,
                     "timestamps": timestamps[-len(values):] if values else []
                 }
-
-            # EMA
-            elif indicator == "EMA":
-                period = params.get("period", 20)
-                values = indicators.calculate_ema(prices, period)
-                return {
-                    "ema": values,
-                    "current": values[-1] if values else None,
-                    "history_size": len(values),
-                    "timeframe": timeframe,
-                    "timestamps": timestamps[-len(values):] if values else []
-                }
-
-            # BOLLINGER
-            elif indicator == "BOLLINGER":
-                period = params.get("period", 20)
-                num_std = params.get("std", 2)
-                bb_data = indicators.calculate_bollinger_bands(prices, period, num_std)
-                bb_data["timeframe"] = timeframe
-                bb_data["timestamps"] = timestamps[-len(bb_data["middle"]):] if bb_data["middle"] else []
-                return bb_data
-
-            # STOCHASTIC
-            elif indicator == "STOCHASTIC":
-                k_period = params.get("k_period", 14)
-                d_period = params.get("d_period", 3)
-                stoch_data = indicators.calculate_stochastic(prices, highs, lows, k_period, d_period)
-                stoch_data["timeframe"] = timeframe
-                stoch_data["timestamps"] = timestamps[-len(stoch_data["k"]):] if stoch_data["k"] else []
-                return stoch_data
-
-            # ATR
-            elif indicator == "ATR":
-                period = params.get("period", 14)
-                values = indicators.calculate_atr(highs, lows, prices, period)
-                return {
-                    "atr": values,
-                    "current": values[-1] if values else None,
-                    "history_size": len(values),
-                    "timeframe": timeframe,
-                    "timestamps": timestamps[-len(values):] if values else []
-                }
-
-            # ADX
-            elif indicator == "ADX":
-                period = params.get("period", 14)
-                adx_data = indicators.calculate_adx(highs, lows, prices, period)
-                adx_data["timeframe"] = timeframe
-                adx_data["timestamps"] = timestamps[-len(adx_data["adx"]):] if adx_data["adx"] else []
-                return adx_data
-
-            # ICHIMOKU
-            elif indicator == "ICHIMOKU":
-                tenkan_period = params.get("tenkan_period", 9)
-                kijun_period = params.get("kijun_period", 26)
-                senkou_b_period = params.get("senkou_b_period", 52)
-                ichimoku_data = indicators.calculate_ichimoku(highs, lows, tenkan_period, kijun_period, senkou_b_period)
-                ichimoku_data["timeframe"] = timeframe
-                ichimoku_data["timestamps"] = timestamps[-len(ichimoku_data["tenkan"]):] if ichimoku_data[
-                    "tenkan"] else []
-                return ichimoku_data
 
             else:
                 return {"error": f"Indicador '{indicator}' no soportado"}
@@ -465,14 +403,8 @@ class Quotex:
                         # Asegurar que tenemos suficientes datos
                         min_periods = {
                             "RSI": 14,
-                            "MACD": 26,
-                            "BOLLINGER": 20,
-                            "STOCHASTIC": 14,
-                            "ADX": 14,
-                            "ATR": 14,
-                            "SMA": 20,
-                            "EMA": 20,
-                            "ICHIMOKU": 52
+                            "KELTNER": 20,
+                            "MOVING_AVERAGE": 10
                         }
 
                         required_periods = min_periods.get(indicator.upper(), 14)
@@ -507,54 +439,24 @@ class Quotex:
                             result["all_values"] = values
                             result["indicator"] = "RSI"
 
-                        elif indicator == "MACD":
-                            fast_period = params.get("fast_period", 12)
-                            slow_period = params.get("slow_period", 26)
-                            signal_period = params.get("signal_period", 9)
-                            macd_data = indicators.calculate_macd(prices, fast_period, slow_period, signal_period)
-                            result["value"] = macd_data["current"]
-                            result["all_values"] = macd_data
-                            result["indicator"] = "MACD"
+                        # Keltner Channel
+                        elif indicator == "KELTNER":
+                            ema_period = params.get("ema_period", 20)
+                            atr_period = params.get("atr_period", 10)
+                            multiplier = params.get("multiplier", 1)
+                            kc_data = indicators.calculate_keltner_channel(prices, highs, lows, ema_period, atr_period, multiplier)
+                            result["value"] = kc_data["current"]
+                            result["all_values"] = kc_data
+                            result["indicator"] = "KELTNER"
 
-                        # BOLLINGER
-                        elif indicator == "BOLLINGER":
-                            period = params.get("period", 20)
-                            num_std = params.get("std", 2)
-                            bb_data = indicators.calculate_bollinger_bands(prices, period, num_std)
-                            result["value"] = bb_data["current"]
-                            result["all_values"] = bb_data
-
-                        # STOCHASTIC
-                        elif indicator == "STOCHASTIC":
-                            k_period = params.get("k_period", 14)
-                            d_period = params.get("d_period", 3)
-                            stoch_data = indicators.calculate_stochastic(prices, highs, lows, k_period, d_period)
-                            result["value"] = stoch_data["current"]
-                            result["all_values"] = stoch_data
-
-                        # ADX
-                        elif indicator == "ADX":
-                            period = params.get("period", 14)
-                            adx_data = indicators.calculate_adx(highs, lows, prices, period)
-                            result["value"] = adx_data["current"]
-                            result["all_values"] = adx_data
-
-                        # ATR
-                        elif indicator == "ATR":
-                            period = params.get("period", 14)
-                            values = indicators.calculate_atr(highs, lows, prices, period)
+                        # Moving Average
+                        elif indicator == "MOVING_AVERAGE":
+                            period = params.get("period", 10)
+                            ma_type = params.get("ma_type", "SMA")
+                            values = indicators.calculate_moving_average(prices, period, ma_type)
                             result["value"] = values[-1] if values else None
                             result["all_values"] = values
-
-                        # ICHIMOKU
-                        elif indicator == "ICHIMOKU":
-                            tenkan_period = params.get("tenkan_period", 9)
-                            kijun_period = params.get("kijun_period", 26)
-                            senkou_b_period = params.get("senkou_b_period", 52)
-                            ichimoku_data = indicators.calculate_ichimoku(highs, lows, tenkan_period, kijun_period,
-                                                                          senkou_b_period)
-                            result["value"] = ichimoku_data["current"]
-                            result["all_values"] = ichimoku_data
+                            result["indicator"] = "MOVING_AVERAGE"
 
                         else:
                             result["error"] = f"Indicador '{indicator}' no soportado para tiempo real"
@@ -881,6 +783,47 @@ class Quotex:
                 break
             finally:
                 await asyncio.sleep(0.2)
+
+    async def get_all_otc_assets(self):
+        instruments = await self.get_instruments()
+        otc_assets = [i[1] for i in instruments if "otc" in i[1]]
+        return otc_assets
+
+    async def monitor_otc_pairs(self, callback):
+        otc_assets = await self.get_all_otc_assets()
+        tasks = [self.monitor_asset(asset, callback) for asset in otc_assets]
+        await asyncio.gather(*tasks)
+
+    async def monitor_asset(self, asset, callback):
+        while True:
+            candles = await self.get_candles(asset, time.time(), 60, 60)
+            if candles:
+                prices = [float(candle["close"]) for candle in candles]
+                highs = [float(candle["high"]) for candle in candles]
+                lows = [float(candle["low"]) for candle in candles]
+
+                indicators = TechnicalIndicators()
+                sma = indicators.calculate_sma(prices, 10)
+                keltner = indicators.calculate_keltner_channel(prices, highs, lows, 20, 10, 1)
+                rsi = indicators.calculate_rsi(prices, 14)
+
+                if len(sma) > 0 and len(keltner["middle"]) > 0 and len(rsi) > 0:
+                    last_price = prices[-1]
+                    last_sma = sma[-1]
+                    last_keltner_upper = keltner["upper"][-1]
+                    last_keltner_middle = keltner["middle"][-1]
+                    last_keltner_lower = keltner["lower"][-1]
+                    last_rsi = rsi[-1]
+
+                    # Buy signal
+                    if last_price > last_sma and (last_price > last_keltner_upper or last_price > last_keltner_middle or last_price > last_keltner_lower) and last_rsi >= 70:
+                        await callback(f"Buy signal for {asset} at {last_price}")
+
+                    # Sell signal
+                    if last_price < last_sma and (last_price < last_keltner_upper or last_price < last_keltner_middle or last_price < last_keltner_lower) and last_rsi <= 30:
+                        await callback(f"Sell signal for {asset} at {last_price}")
+
+            await asyncio.sleep(60)
 
     def close(self):
         return self.api.close()

@@ -1,0 +1,281 @@
+/* Conti Internet Access Service (CIAS)  -  global proxy configuration file */
+// ### Version: 399 ###
+// ### SavedAt: 2025-02-19T06:20:32.263Z ###
+// ### Variant: wpad-tpac.dat ###
+
+// extra proxy definitions
+var JPPROXY = "PROXY 172.26.96.239:8080";
+var SIAProxy = "PROXY sia-proxy.geo.conti.de:3128";
+
+var LOCProxy = "PROXY 10.148.99.99:3128";
+
+// misc definitions
+var NOPROXY = "DIRECT";
+var RETPROXY = NOPROXY;
+
+// set this to 1 in order to enable debug output to the Java console
+var DEBUG = 0;
+
+function isInDomain(host, domain) {
+  // fix . prefix problem of the original function
+  if (host.length > domain.length) {
+    return (host.substring(host.length - domain.length - 1) == "." + domain);
+  }
+  return (host == domain);
+}
+
+/* === end of initial setup ================================================ */
+
+// main function which is called by the browser to find the proxy by url and host
+function FindProxyForURL(url, host) {
+  url = url.toLowerCase();
+  host = host.toLowerCase();
+
+// handle stuff where we don't use a proxy, even if later this is
+// in a domain that is sent to a proxy.
+// mainly this is just BMW.
+  if (0
+    || localHostOrDomainIs(host, "oss-app-prod.bmw.com")
+    || localHostOrDomainIs(host, "oss.bmw.de")
+    || localHostOrDomainIs(host, "b2b.bmw.com")
+    || localHostOrDomainIs(host, "lpkm-prod.bmw.com")
+    || localHostOrDomainIs(host, "b2b-sso.bmw.com")
+    || isInDomain(host, "aspr-b2b.bmw.com")
+    || localHostOrDomainIs(host, "exd-prod1.bmw.com")
+    || localHostOrDomainIs(host, "swl-sec.bmw.com")
+    || localHostOrDomainIs(host, "swl-sec2.bmw.com")
+    || localHostOrDomainIs(host, "tcss.naeng.gm.com")
+    || localHostOrDomainIs(host, "tc-pgcs.naeng.gm.com")
+    || 0)
+  { RETPROXY = NOPROXY; }
+
+  else if (0
+    || localHostOrDomainIs(host, "chassis1.bbs.tec.toyota.co.jp")
+    || localHostOrDomainIs(host, "aidm.auth.toyota.co.jp")
+    || localHostOrDomainIs(host, "softsite-2.bbs2.tec.toyota.co.jp")
+    || localHostOrDomainIs(host, "vpacs-jp.qj.toyota.co.jp")
+    || localHostOrDomainIs(host, "impact.jnx.honda.co.jp")
+    || localHostOrDomainIs(host, "biz.jnx.honda.co.jp")
+    || localHostOrDomainIs(host, "mgn.nss.mazda.co.jp")
+    || localHostOrDomainIs(host, "jp.nissan.biz")
+    || localHostOrDomainIs(host, "www.jnx.amigo-edi.com")
+    || localHostOrDomainIs(host, "www.snet-sv.subaru-fhi.co.jp")
+    || localHostOrDomainIs(host, "aportal.auth.toyota.co.jp")
+    || localHostOrDomainIs(host, "tdl3.mx.toyota.co.jp")
+    || localHostOrDomainIs(host, "t-supplier.com.toyota.co.jp")
+    || localHostOrDomainIs(host, "www.at.toyota.co.jp")
+    || localHostOrDomainIs(host, "wincmm.cj.toyota.co.jp")
+    || localHostOrDomainIs(host, "www.u-diex.jp")
+    || localHostOrDomainIs(host, "warpsi.toyota.co.jp")
+    || localHostOrDomainIs(host, "ispiritsup.mx.toyota.co.jp")
+    || localHostOrDomainIs(host, "deshare.d-cruise.tns.ne.jp")
+    || localHostOrDomainIs(host, "e-kanban-rcv.scm.toyota.co.jp")
+    || localHostOrDomainIs(host, "part-dc.adm.tec.toyota.co.jp")
+    || localHostOrDomainIs(host, "ts-home.stnd.toyota.co.jp")
+    || localHostOrDomainIs(host, "tqnets31.mx.toyota.co.jp")
+    || localHostOrDomainIs(host, "zuichoku.wm.toyota.co.jp")
+    || localHostOrDomainIs(host, "prd-rprp1.toeja.toyota.co.jp")
+    || isInDomain(host, "mx.toyota.co.jp")
+    || localHostOrDomainIs(host, "atsc.auth.toyota.co.jp")
+    || localHostOrDomainIs(host, "www.ad.u-diex.jp")
+    || localHostOrDomainIs(host, "ts-home2.stnd.toyota.co.jp")
+    || localHostOrDomainIs(host, "warpgksi.toyota.co.jp")
+    || localHostOrDomainIs(host, "warpgk1.toyota.co.jp")
+    || isInDomain(host, "kitora.toyota.co.jp")
+    || localHostOrDomainIs(host, "gdauth.jp.nissan.biz")
+    || localHostOrDomainIs(host, "vpacs-jp.fr.toyota.co.jp")
+    || localHostOrDomainIs(host, "survey-mass.tec.toyota.co.jp")
+    || 0)
+  { RETPROXY = JPPROXY; }
+
+ else if (0
+    || localHostOrDomainIs(host, "api.powerbi.com")
+    || isInDomain(host, "analysis.windows.net")
+    || isInDomain(host, "pbidedicated.windows.net")
+    || isInDomain(host, "powerapps.com")
+    || isInDomain(host, "powerbi.com")
+    || localHostOrDomainIs(host, "dc.services.visualstudio.com")
+    || localHostOrDomainIs(host, "appsource.microsoft.com")
+    || isInDomain(host, "s-microsoft.com")
+    || isInDomain(host, "azuredge.net")
+    || isInDomain(host, "blob.core.windows.net")
+    || isInDomain(host, "osi.office.net")
+    || isInDomain(host, "msecnd.net")
+    || localHostOrDomainIs(host, "store.office.com")
+    || localHostOrDomainIs(host, "web.vortex.data.microsoft.com")
+    || localHostOrDomainIs(host, "store-images.s-microsoft.com")
+    || isInDomain(host, "api.powerplatform.com")
+    || 0)
+  { RETPROXY = LOCProxy; }
+
+  else if (0
+    || isInDomain(host, "bmw")
+    || isInDomain(host, "bmw.com")
+    || isInDomain(host, "bmwgroup.com")
+    || localHostOrDomainIs(host, "www.alphabetonline.com")
+    || isInDomain(host, "preprod.wc.subarucs.com")
+    || localHostOrDomainIs(host, "group-cip.audi.de")
+    || localHostOrDomainIs(host, "banking.bmwbank.de")
+    || isInDomain(host, "contitrade.sabacloud.com")
+    || isInDomain(host, "contitradesb.sabacloud.com")
+    || localHostOrDomainIs(host, "static-eu3t1.sabacloud.com")
+    || localHostOrDomainIs(host, "static-eu2.sabacloud.com")
+    || localHostOrDomainIs(host, "sabacloud.com.edgekey.net")
+    || localHostOrDomainIs(host, "contitradesb-franchise.sabacloud.com")
+    || isInDomain(host, "wescale.com")
+    || isInDomain(host, "prd-spp02.tmc.toeja.com")
+    || isInDomain(host, "www.icegate.gov.in")
+    || isInDomain(host, "supnet.bmw.co.za")
+    || localHostOrDomainIs(host, "bus-lieferantenportal.i.daimler.com")
+    || isInDomain(host, "webservices.conti.de")
+    || localHostOrDomainIs(host, "starc.mercedes-benz.com")
+    || localHostOrDomainIs(host, "wiki.swf.daimler.com")
+    || localHostOrDomainIs(host, "issue.swf.daimler.com")
+    || localHostOrDomainIs(host, "vergoelst-werbeartikel.de")
+    || isInDomain(host, "gws.conti.de")
+    || isInDomain(host, "ondemand.com")
+    || isInDomain(host, "fazit-b2b.audi.de")
+    || localHostOrDomainIs(host, "pre-sso-api.audi.de")
+    || localHostOrDomainIs(host, "www.pre-cip.audi.de")
+    || isInDomain(host, "concursolutions.com")
+    || isInDomain(host, "roempp.thieme.de")
+    || localHostOrDomainIs(host, "authentication.thieme.de")
+    || localHostOrDomainIs(host, "view.alphabet.com")
+    || localHostOrDomainIs(host, "jiraexternal.it.volvo.com")
+    || isInDomain(host, "dayforcehcm.com")
+    || localHostOrDomainIs(host, "artifactory.elektrobit.com")
+    || localHostOrDomainIs(host, "swf.daimler.com")
+    || isInDomain(host, "euorca.rd.honda.co.jp")
+    || isInDomain(host, "orca.rd.honda.co.jp")
+    || isInDomain(host, "kenexa.com")
+    || isInDomain(host, "brassring.com")
+    || isInDomain(host, "jobs-internal.elektrobit.com")
+    || isInDomain(host, "bandtsu.bandvulc.co.uk")
+    || isInDomain(host, "binance.com")
+    || isInDomain(host, "palantircloud.com")
+    || isInDomain(host, "contur-online.de")
+    || isInDomain(host, "wvd.microsoft.com")
+    || isInDomain(host, "gerstel.com")
+    || localHostOrDomainIs(host, "mail.lammerslogistik.de")
+    || isInDomain(host, "cscglobal.com")
+    || localHostOrDomainIs(host, "meridian.allenpress.com")
+    || localHostOrDomainIs(host, "thefinder.tax.ohio.gov")
+    || localHostOrDomainIs(host, "www.awr-portal.de")
+    || localHostOrDomainIs(host, "sso.mercedes-benz.com")
+    || localHostOrDomainIs(host, "login.mercedes-benz.com")
+    || localHostOrDomainIs(host, "ampki-etm.mercedes-benz.com")
+    || isInDomain(host, "fr-rmcloud.recommind.com")
+    || localHostOrDomainIs(host, "onlineservices.tin.egov-nsdl.com")
+    || isInDomain(host, "radissonhotels.com")
+    || localHostOrDomainIs(host, "partner.sp.wp.corpshared.net")
+    || localHostOrDomainIs(host, "bus-lieferantenportal.daimlertruck.com")
+    || localHostOrDomainIs(host, "www.hotel.de")
+    || localHostOrDomainIs(host, "staging-jobportal-intern.gws.continental.com")
+    || localHostOrDomainIs(host, "internaljobs.continental.com")
+    || localHostOrDomainIs(host, "jobs.smartrecruiters.com")
+    || localHostOrDomainIs(host, "cim.continental-corporation.com")
+    || localHostOrDomainIs(host, "cim-test.continental-corporation.com")
+    || localHostOrDomainIs(host, "www.wetransfer.com")
+    || isInDomain(host, "i.mercedes-benz.com")
+    || localHostOrDomainIs(host, "strongauth.bmwgroup.net")
+    || localHostOrDomainIs(host, "smb.daimlertruck.com")
+    || localHostOrDomainIs(host, "vts-adfs.bmwgroup.net")
+    || localHostOrDomainIs(host, "www.volvocars.com")
+    || localHostOrDomainIs(host, "smb.api.mercedes-benz.com")
+    || localHostOrDomainIs(host, "gitexternal.it.volvo.com")
+    || localHostOrDomainIs(host, "arxiv.org")
+    || localHostOrDomainIs(host, "bmw.ateb.com.mx")
+    || localHostOrDomainIs(host, "bmw2.ateb.com.mx")
+    || localHostOrDomainIs(host, "copilot.microsoft.com")
+    || localHostOrDomainIs(host, "ipneu.cz")
+    || isInDomain(host, "eccp1.yanfeng.com")
+    || localHostOrDomainIs(host, "continental.eu.app.az.keyfactorsaas.com")
+    || localHostOrDomainIs(host, "auto-sens.com")
+    || localHostOrDomainIs(host, "cargox.io")
+    || isInDomain(host, "cim-test2.hypeinnovation.com")
+    || isInDomain(host, "forum.cgistudio.at")
+    || localHostOrDomainIs(host, "git.swf.daimler.com")
+    || localHostOrDomainIs(host, "numpy.org")
+    || isInDomain(host, "ibys.isyeri.tv")
+    || isInDomain(host, "optivend.ro")
+    || isInDomain(host, "calibrisapp.com")
+    || isInDomain(host, "akademie.automotive.at")
+    || localHostOrDomainIs(host, "elaioladopiliou.gr")
+    || localHostOrDomainIs(host, "magnesianews.gr")
+    || isInDomain(host, "eventstore.com")
+    || localHostOrDomainIs(host, "www.hennlich.cz")
+    || isInDomain(host, "advanced-recycling.eu")
+    || isInDomain(host, "enclustra.com")
+    || isInDomain(host, "rke2.io")
+    || isInDomain(host, "ax.dev")
+    || isInDomain(host, "issuing.continental.eu.app.az.keyfactorsaas.com")
+    || localHostOrDomainIs(host, "www.lemona.lt")
+    || isInDomain(host, "ant.design")
+    || isInDomain(host, "clarabel.org")
+    || isInDomain(host, "displaydaily.com")
+    || isInDomain(host, "sigmazone.com")
+    || localHostOrDomainIs(host, "www.mobiliteit.nl")
+    || isInDomain(host, "wiki.teltonika-gps.com")
+    || isInDomain(host, "cicd.cloud.audi")
+    || isInDomain(host, "sso-api.audi.de")
+    || isInDomain(host, "teltonika-networks.com")
+    || localHostOrDomainIs(host, "www.kurtzersa.de")
+    || isInDomain(host, "ts.kurtzersa.de")
+    || isInDomain(host, "renewable-carbon-initiative.com")
+    || isInDomain(host, "nova-cloud.info")
+    || isInDomain(host, "www.3gpp.org")
+    || isInDomain(host, "www.mdsystem.com")
+    || localHostOrDomainIs(host, "pvideo.cz")
+    || isInDomain(host, "arxiv.org")
+    || isInDomain(host, "outokumpu.com")
+    || isInDomain(host, "drivingexperience.bmw-m.com")
+    || isInDomain(host, "www.kosturiak.cz")
+    || isInDomain(host, "staging.gws.continental.com")
+    || isInDomain(host, "b2bstaticapp.bmw.com")
+    || isInDomain(host, "portal.edocument.azure.bmw.cloud")
+    || isInDomain(host, "auth.bmw.com")
+    || isInDomain(host, "b2b.bmw.com")
+    || isInDomain(host, "portal-api.edocument.azure.bmw.cloud")
+    || isInDomain(host, "portail.infolegale.fr")
+    || isInDomain(host, "auth.infolegale.fr")
+    || isInDomain(host, "inail.it")
+    || isInDomain(host, "dayforce.com")
+    || isInDomain(host, "mqtt-dev.etravelcompanion.com")
+    || isInDomain(host, "mqtt-staging.etravelcompanion.com")
+    || isInDomain(host, "mqtt-test.etravelcompanion.com")
+    || isInDomain(host, "www.coficpolo.com.br")
+    || isInDomain(host, "apolloerp003.meu-cloud.com")
+    || isInDomain(host, "staging.jobportal.automotive-backend.com")
+    || isInDomain(host, "jobportal.automotive-backend.com")
+    || 0)
+  { RETPROXY = SIAProxy; }
+
+  else
+  { RETPROXY = NOPROXY; }  // use FIA transparent connection if nothing else matches
+
+  // show result to Java console
+  if (DEBUG) { alert(RETPROXY + "\n"); }
+
+  // give the resulting proxy info back to the browser
+  return RETPROXY;
+}
+/* === end of function FindProxyForURL(url, host) === */
+
+±≈6(ãñ      g ù g ùGÒX~gÃ∫)   '    :http://sia-tpac.conti.de:8080/wpad.dat strongly-framed 1 request-method GET response-head HTTP/1.1 200 OK
+Date: Fri, 07 Mar 2025 07:15:19 GMT
+Server: Apache/2.4.6 (Red Hat Enterprise Linux) OpenSSL/1.0.2k-fips
+Last-Modified: Wed, 19 Feb 2025 06:25:32 GMT
+ETag: "2fa4-62e78d30c0f00"
+Accept-Ranges: bytes
+Content-Length: 12196
+Content-Type: text/plain; charset=UTF-8
+ original-response-headers Date: Fri, 07 Mar 2025 07:15:19 GMT
+Server: Apache/2.4.6 (Red Hat Enterprise Linux) OpenSSL/1.0.2k-fips
+Last-Modified: Wed, 19 Feb 2025 06:25:32 GMT
+ETag: "2fa4-62e78d30c0f00"
+Accept-Ranges: bytes
+Content-Length: 12196
+Keep-Alive: timeout=5, max=100
+Connection: Keep-Alive
+Content-Type: text/plain; charset=UTF-8
+ ctid 1 uncompressed-len 0   /§

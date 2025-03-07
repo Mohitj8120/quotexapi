@@ -9,33 +9,17 @@ class Buy(Base):
     name = "buy"
 
     def __call__(self, price, asset, direction, duration, request_id, is_fast_option):
-        option_type = 100
-        expiration_time = get_expiration_time_quotex(
-            int(self.api.timesync.server_timestamp),
-            duration
-        )
-
-        duration = expiration_time
-
-        if "_otc" not in asset or is_fast_option:
-            option_type = 1
-            if is_fast_option:
-                self.api.settings_apply(
-                    asset,
-                    duration,
-                    is_fast_option=True,
-                    end_time=expiration_time,
-                )
+        expiration_time = get_expiration_time_quotex(duration)  # Corrected function call
 
         payload = {
             "asset": asset,
             "amount": price,
-            "time": duration,
+            "time": expiration_time,
             "action": direction,
             "isDemo": self.api.account_type,
             "tournamentId": 0,
             "requestId": request_id,
-            "optionType": option_type
+            "optionType": 100 if "_otc" not in asset or is_fast_option else 1
         }
 
         data = f'42["tick"]'

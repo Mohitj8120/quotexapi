@@ -25,14 +25,20 @@ def get_timestamp_days_ago(days):
     return timestamp_days_ago
 
 
-def get_expiration_time_quotex(timestamp, duration):
-    now_date = datetime.fromtimestamp(timestamp)
-    shift = 0
-    if now_date.second >= 30:
-        shift = 1
-    exp_date = now_date.replace(second=0, microsecond=0)
-    exp_date = exp_date + timedelta(minutes=int(duration / duration) + shift)
-    return date_to_timestamp(exp_date)
+def get_expiration_time_quotex(duration: int):
+    """
+    Calculate the correct expiration timestamp for Quotex.
+
+    Args:
+        duration (int): Trade duration in seconds (e.g., 60 for 1 minute).
+
+    Returns:
+        int: Valid expiration timestamp.
+    """
+    now = datetime.utcnow()
+    shift = 1 if now.second >= 30 else 0  # Adjust for mid-minute trades
+    exp_time = now.replace(second=0, microsecond=0) + timedelta(minutes=(duration // 60) + shift)
+    return int(exp_time.timestamp())
 
 
 def get_next_timeframe(timestamp, time_zone, timeframe: int, open_time: str = None) -> str:
@@ -73,7 +79,7 @@ def get_next_timeframe(timestamp, time_zone, timeframe: int, open_time: str = No
 def get_expiration_time(timestamp, duration):
     now = datetime.now()
     new_date = now.replace(second=0, microsecond=0)
-    exp = new_date + timedelta(seconds=duration)
+    exp = new_date + timedelta(minutes=int(duration // 60))
     exp_date = exp.replace(second=0, microsecond=0)
     return int(date_to_timestamp(exp_date))
 
@@ -87,7 +93,7 @@ def get_period_time(duration):
 def get_remaning_time(timestamp):
     now_date = datetime.fromtimestamp(timestamp)
     exp_date = now_date.replace(second=0, microsecond=0)
-    if (int(date_to_timestamp(exp_date + timedelta(minutes=1))) - timestamp) > 30:
+    if (int(time.time()) % 60) > 30:
         exp_date = exp_date + timedelta(minutes=1)
     else:
         exp_date = exp_date + timedelta(minutes=2)

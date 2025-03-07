@@ -40,5 +40,6 @@ class Browser(object):
         return BeautifulSoup(self.response.content, "html.parser")
 
     def send_request(self, method, url, **kwargs):
+        kwargs['verify'] = False  # Disable SSL verification
         self.response = self.session.request(method, url, headers=self.headers, **kwargs)
         return self.response
