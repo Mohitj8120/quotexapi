@@ -7,6 +7,8 @@ import time
 import random
 import asyncio
 import pyfiglet
+import requests
+from quotexapi.utils.indicators import TechnicalIndicators  # Corrected import statement
 from pathlib import Path
 from quotexapi.expiration import (
     timestamp_to_date,
@@ -642,18 +644,87 @@ async def get_signal_data():
     client.close()
 
 
+async def display_utc_time():
+    while True:
+        print(f"UTC Time: {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())}", end="\r")
+        await asyncio.sleep(1)
+
+from config.settings import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+
+async def send_telegram_message(message):
+    """ Sends a message to your Telegram bot """
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    data = {"chat_id": TELEGRAM_CHAT_ID, "text": message}
+    try:
+        response = requests.post(url, data=data)
+        if response.status_code == 200:
+            print("📩 Telegram Alert Sent!")
+        else:
+            print(f"⚠️ Telegram Error: {response.text}")
+    except Exception as e:
+        print(f"❌ Telegram Exception: {e}")
+
 async def run_strategy():
     check_connect, message = await client.connect()
     if check_connect:
-        def strategy(close_prices):
-            # Ensure there are enough prices to apply the strategy
-            if len(close_prices) < 2:
+        def strategy(asset, close_prices):
+            if len(close_prices) < 10:
                 return False
-            # Define your strategy here
-            # Return True if the strategy conditions are met, otherwise return False
-            return close_prices[-1] > close_prices[-2]
 
-        await client.auto_trade(strategy)
+            # Calculate indicators
+            sma = TechnicalIndicators.calculate_sma(close_prices, 10)
+            rsi = TechnicalIndicators.calculate_rsi(close_prices, 14)
+            keltner = TechnicalIndicators.calculate_keltner_channel(close_prices, 20, 10, 1)
+
+            # Get the latest values
+            latest_price = close_prices[-1]
+            latest_sma = sma[-1]
+            latest_rsi = rsi[-1]
+            latest_keltner_upper = keltner["upper"][-1]
+            latest_keltner_middle = keltner["middle"][-1]
+            latest_keltner_lower = keltner["lower"][-1]
+
+            # Buy signal logic
+            if latest_price > latest_sma and (latest_price > latest_keltner_upper or latest_price > latest_keltner_middle or latest_price > latest_keltner_lower) and latest_rsi >= 70:
+                asyncio.create_task(send_telegram_message(f"Buy signal for {asset} at {latest_price}"))
+                return True
+
+            # Sell signal logic
+            if latest_price < latest_sma and (latest_price < latest_keltner_upper or latest_price < latest_keltner_middle or latest_price < latest_keltner_lower) and latest_rsi <= 30:
+                asyncio.create_task(send_telegram_message(f"Sell signal for {asset} at {latest_price}"))
+                return True
+
+            return False
+
+        # Fetch the list of available OTC pairs
+        otc_pairs = await client.get_all_assets()
+        otc_pairs = {k: v for k, v in otc_pairs.items() if "otc" in k}
+
+        # Send the list of OTC pairs to Telegram
+        pairs_message = "Available OTC Pairs:\n" + "\n".join(otc_pairs.keys())
+        await send_telegram_message(pairs_message)
+
+        # Start displaying the real-time UTC time
+        utc_task = asyncio.create_task(display_utc_time())
+
+        # Monitor and display the current prices of OTC pairs
+        while True:
+            prices_message = "Current Prices:\n"
+            for pair in otc_pairs.keys():
+                prices = await client.get_realtime_candles(pair, 60)
+                if prices:
+                    current_price = prices[-1]['price']
+                    prices_message += f"{pair}: {current_price}\n"
+            print(prices_message)
+            await send_telegram_message(prices_message)
+            await asyncio.sleep(1)
+
+        # Cancel the UTC time display task
+        utc_task.cancel()
+        try:
+            await utc_task
+        except asyncio.CancelledError:
+            pass
 
     print("Exiting...")
 

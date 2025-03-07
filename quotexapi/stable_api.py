@@ -4,7 +4,7 @@ import asyncio
 import requests
 import csv
 import os
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from . import expiration
 from . import global_value
 from .api import QuotexAPI
@@ -81,6 +81,7 @@ class Quotex:
         self.session_data = session
         if not email or not password:
             self.email, self.password = credentials()
+        self.last_trade_time = 0  # Track the last trade time
 
     @property
     def websocket(self):
@@ -198,6 +199,14 @@ class Quotex:
         candles = self.prepare_candles(asset, period)
         return candles
 
+    async def get_realtime_candles(self, asset, period):
+        self.api.realtime_price[asset] = []
+        self.start_candles_stream(asset, period)
+        while True:
+            if self.api.realtime_price.get(asset):
+                return self.api.realtime_price[asset]
+            await asyncio.sleep(1)
+
     def prepare_candles(self, asset: str, period: int):
         """
         Prepare candles data for a specified asset.
@@ -297,30 +306,42 @@ class Quotex:
 
     async def auto_trade(self, strategy):
         """ Automatically trade based on strategy """
-        assets = await self.get_all_assets()
-        for asset in assets:
-            end_from_time = time.time()
-            offset = 3600  # 1 hour
-            period = 60  # 1 minute
-            candles = await self.get_candles(asset, end_from_time, offset, period)
-            close_prices = [candle['close'] for candle in candles]
-            if strategy(close_prices):
-                await self.synchronize_time()
-                await self.buy(10, asset, "call", duration=60)
-                send_telegram_message(f"Trade executed on {asset} based on strategy")
+        await self.synchronize_time()
+        while True:
+            assets = await self.get_all_assets()
+            for asset in assets:
+                if "otc" in asset:
+                    candles = await self.get_realtime_candles(asset, 60)
+                    close_prices = [candle['price'] for candle in candles]
+                    if strategy(asset, close_prices):
+                        current_time = time.time()
+                        if current_time - self.last_trade_time > 60:  # 60 seconds cooldown
+                            await self.buy(10, asset, "call", duration=60)
+                            self.last_trade_time = current_time
+                            send_telegram_message(f"Trade executed on {asset} based on strategy")
+            await asyncio.sleep(1)  # Fetch data every second
 
     async def synchronize_time(self):
-        """Synchronize local time with Quotex server time"""
-        server_time = self.api.timesync.server_timestamp
-        local_time = time.time()
-        time_difference = server_time - local_time
-        if abs(time_difference) > 1:
-            print(f"Synchronizing time: adjusting by {time_difference} seconds")
-            if time_difference > 0:
-                time.sleep(time_difference)
-            else:
-                # Adjust local time forward
-                await asyncio.sleep(abs(time_difference))
+        """Continuously synchronize local time with Quotex server time and display both times"""
+        while True:
+            server_time = self.api.timesync.server_timestamp
+            local_time = time.time()
+            time_difference = server_time - local_time
+            print(f"Local time before sync: {datetime.fromtimestamp(local_time).strftime('%Y-%m-%d %H:%M:%S')}")
+            print(f"Server time (UTC): {datetime.fromtimestamp(server_time, timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}")
+            if abs(time_difference) > 1:
+                print(f"Synchronizing time: adjusting by {time_difference} seconds")
+                if time_difference > 0:
+                    time.sleep(time_difference)
+                else:
+                    # Adjust local time forward
+                    await asyncio.sleep(abs(time_difference))
+            print(f"Local time after sync: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            await asyncio.sleep(1)  # Synchronize every second
+
+            # Display real-time UTC time
+            utc_time = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+            print(f"Current UTC Time: {utc_time}", end="\r")
 
     async def buy(self, amount: float, asset: str, direction: str, duration: int, time_mode: str = "TIMER"):
         """Buy Binary option"""
@@ -328,6 +349,7 @@ class Quotex:
         request_id = expiration.get_timestamp()
         is_fast_option = True if time_mode.upper() == "TIME" else False
         self.start_candles_stream(asset, duration)
+        print(f"Executing trade at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         self.api.buy(amount, asset, direction, duration, request_id, is_fast_option)
 
         count = 0.1
@@ -359,6 +381,8 @@ class Quotex:
         if self.websocket_client:
             self.websocket_client.wss.close()
             self.websocket_thread.join()
+        if hasattr(self, 'utc_task'):
+            self.utc_task.cancel()
         return True
 
 def send_telegram_message(message):
@@ -386,3 +410,10 @@ def log_trade(timestamp, asset, trade_type, amount, result, profit_loss):
     with open(LOG_FILE, mode="a", newline="") as file:
         writer = csv.writer(file)
         writer.writerow([timestamp, asset, trade_type, amount, result, profit_loss])
+
+async def display_utc_time():
+    """Display the current UTC time"""
+    while True:
+        utc_time = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+        print(f"Current UTC Time: {utc_time}", end="\r")
+        await asyncio.sleep(1)
