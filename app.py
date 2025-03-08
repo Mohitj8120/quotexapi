@@ -7,6 +7,9 @@ import time
 import random
 import asyncio
 import pyfiglet
+import requests
+from datetime import datetime, timezone, timedelta
+from quotexapi.utils.indicators import TechnicalIndicators  # Corrected import statement
 from pathlib import Path
 from quotexapi.expiration import (
     timestamp_to_date,
@@ -236,51 +239,69 @@ async def buy_and_check_win():
 
 
 async def trade_and_monitor():
+    # Attempt to connect to the client
     check_connect, message = await client.connect()
     if check_connect:
+        # Define trade parameters
         amount = 50
-        asset = "AUDCAD"
+        asset = "AUDCAD_otc"
         direction = "call"
         duration = 60  # in seconds
 
+        # Check if the asset is available for trading
         asset_name, asset_data = await client.get_available_asset(asset, force_open=True)
         print(asset_name, asset_data)
 
-        if asset_data[2]:
+        if asset_data[2]:  # If the asset is open for trading
             print("OK: Asset is open.")
-            status, buy_info = await client.buy(amount, asset_name, direction, duration)
-            if status:
-                open_price = buy_info.get('openPrice')
-                close_timestamp = buy_info.get('closeTimestamp')
-                print("Open Price:", open_price)
+            try:
+                # Calculate the expiration time for the trade in UTC
+                expiration_time = datetime.utcnow() + timedelta(seconds=duration)
+                print(f"Expiration Time (UTC): {expiration_time.strftime('%Y-%m-%d %H:%M:%S')}")
 
-                await asyncio.sleep(duration)
+                # Attempt to execute the trade using UTC time
+                status, buy_info = await client.buy(amount, asset_name, direction, duration, time_mode="TIME")
+                if status:
+                    # If the trade was successful, get the open price and close timestamp
+                    open_price = buy_info.get('openPrice')
+                    close_timestamp = buy_info.get('closeTimestamp')
+                    print("Open Price:", open_price)
 
-                await client.start_realtime_price(asset, 60)
+                    # Wait for the duration of the trade
+                    await asyncio.sleep(duration)
 
-                prices = await client.get_realtime_price(asset_name)
+                    # Start monitoring the real-time price of the asset
+                    await client.start_realtime_price(asset, 60)
 
-                if prices:
-                    current_price = prices[-1]['price']
-                    current_timestamp = prices[-1]['time']
-                    print(f"Current Time: {int(current_timestamp)}, Close Time: {close_timestamp}")
-                    print(f"Current Price: {current_price}, Open Price: {open_price}")
+                    # Get the real-time prices of the asset
+                    prices = await client.get_realtime_price(asset_name)
 
-                    if (direction == "call" and current_price > open_price) or (
-                            direction == "put" and current_price < open_price):
-                        print("Result: WIN")
-                        return 'Win'
-                    elif (direction == "call" and current_price <= open_price) or (
-                            direction == "put" and current_price >= open_price):
-                        print("Result: LOSS")
-                        return 'Loss'
+                    if prices:
+                        # Get the current price and timestamp
+                        current_price = prices[-1]['price']
+                        current_timestamp = prices[-1]['time']
+                        print(f"Current Time: {int(current_timestamp)}, Close Time: {close_timestamp}")
+                        print(f"Current Price: {current_price}, Open Price: {open_price}")
+
+                        # Determine the result of the trade
+                        if (direction == "call" and current_price > open_price) or (
+                                direction == "put" and current_price < open_price):
+                            print("Result: WIN")
+                            return 'Win'
+                        elif (direction == "call" and current_price <= open_price) or (
+                                direction == "put" and current_price >= open_price):
+                            print("Result: LOSS")
+                            return 'Loss'
+                        else:
+                            print("Result: DOJI")
+                            return 'Doji'
                     else:
-                        print("Result: DOJI")
-                        return 'Doji'
+                        print("Not a price direction.")
                 else:
-                    print("Not a price direction.")
-            else:
-                print("Operation failed!!!")
+                    print("Operation failed!!!")
+                    print("Buy Info:", buy_info)
+            except Exception as e:
+                print(f"An error occurred during the trade: {e}")
         else:
             print("ERRO: Asset is closed.")
 
@@ -642,18 +663,124 @@ async def get_signal_data():
     client.close()
 
 
+async def display_utc_time():
+    while True:
+        print(f"UTC Time: {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())}", end="\r")
+        await asyncio.sleep(1)
+
+from config.settings import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+
+async def send_telegram_message(message):
+    """ Sends a message to your Telegram bot """
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    data = {"chat_id": TELEGRAM_CHAT_ID, "text": message}
+    try:
+        response = requests.post(url, data=data)
+        if response.status_code == 200:
+            print("📩 Telegram Alert Sent!")
+        else:
+            print(f"⚠️ Telegram Error: {response.text}")
+    except Exception as e:
+        print(f"❌ Telegram Exception: {e}")
+
 async def run_strategy():
     check_connect, message = await client.connect()
     if check_connect:
-        def strategy(close_prices):
-            # Ensure there are enough prices to apply the strategy
-            if len(close_prices) < 2:
+        def strategy(asset, close_prices):
+            if len(close_prices) < 10:
                 return False
-            # Define your strategy here
-            # Return True if the strategy conditions are met, otherwise return False
-            return close_prices[-1] > close_prices[-2]
 
-        await client.auto_trade(strategy)
+            # Calculate indicators
+            sma = TechnicalIndicators.calculate_sma(close_prices, 10)
+            rsi = TechnicalIndicators.calculate_rsi(close_prices, 14)
+            keltner = TechnicalIndicators.calculate_keltner_channel(close_prices, 20, 10, 1)
+
+            # Get the latest values
+            latest_price = close_prices[-1]
+            latest_sma = sma[-1]
+            latest_rsi = rsi[-1]
+            latest_keltner_upper = keltner["upper"][-1]
+            latest_keltner_middle = keltner["middle"][-1]
+            latest_keltner_lower = keltner["lower"][-1]
+
+            # Buy signal logic
+            if latest_price > latest_sma and (latest_price > latest_keltner_upper or latest_price > latest_keltner_middle or latest_price > latest_keltner_lower) and latest_rsi >= 70:
+                asyncio.create_task(send_telegram_message(f"Buy signal for {asset} at {latest_price}"))
+                return True
+
+            # Sell signal logic
+            if latest_price < latest_sma and (latest_price < latest_keltner_upper or latest_price < latest_keltner_middle or latest_price < latest_keltner_lower) and latest_rsi <= 30:
+                asyncio.create_task(send_telegram_message(f"Sell signal for {asset} at {latest_price}"))
+                return True
+
+            return False
+
+        # Fetch the list of available OTC pairs
+        otc_pairs = await client.get_all_assets()
+        otc_pairs = {k: v for k, v in otc_pairs.items() if "otc" in k}
+
+        # Send the list of OTC pairs to Telegram
+        pairs_message = "Available OTC Pairs:\n" + "\n".join(otc_pairs.keys())
+        await send_telegram_message(pairs_message)
+
+        # Start displaying the real-time UTC time
+        utc_task = asyncio.create_task(display_utc_time())
+
+        # Monitor and display the current prices of OTC pairs
+        while True:
+            prices_message = "Current Prices:\n"
+            for pair in otc_pairs.keys():
+                prices = await client.get_realtime_candles(pair, 60)
+                if prices:
+                    current_price = prices[-1]['price']
+                    prices_message += f"{pair}: {current_price}\n"
+            print(prices_message)
+            await send_telegram_message(prices_message)
+            await asyncio.sleep(1)
+
+        # Cancel the UTC time display task
+        utc_task.cancel()
+        try:
+            await utc_task
+        except asyncio.CancelledError:
+            pass
+
+    print("Exiting...")
+
+    client.close()
+
+async def synchronize_time():
+    """Synchronize local time with Quotex server time."""
+    server_time = client.api.timesync.server_timestamp
+    local_time = time.time()
+    time_difference = server_time - local_time
+    if abs(time_difference) > 1:
+        if time_difference > 0:
+            time.sleep(time_difference)
+        else:
+            await asyncio.sleep(abs(time_difference))
+
+async def test_strategy():
+    check_connect, message = await client.connect()
+    if check_connect:
+        # Change the demo account balance to 5000
+        await client.edit_practice_balance(5000)
+        print("Demo account balance set to 5000")
+
+        # Check if the asset is available
+        asset = "XAUUSD_otc"
+        asset_name, asset_data = await client.get_available_asset(asset, force_open=True)
+        if not asset_data[2]:
+            print(f"Asset {asset} is not available.")
+            return
+
+        # Synchronize time
+        await synchronize_time()
+
+        # Execute the trade immediately after connecting
+        await client.buy(10, asset_name, "call", duration=60)
+        utc_time = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+        await send_telegram_message(f"Trade executed on {asset_name} at {utc_time}")
 
     print("Exiting...")
 
@@ -709,6 +836,8 @@ async def execute(argument):
             return await balance_refill()
         case "run_strategy":
             return await run_strategy()
+        case "test_strategy":
+            return await test_strategy()
         case "help":
             print(f"Use: {'./app' if getattr(sys, 'frozen', False) else 'python app.py'} <option>")
             return print(get_all_options())
@@ -736,5 +865,7 @@ if __name__ == "__main__":
         loop.run_until_complete(main())
     except KeyboardInterrupt:
         print("Closing at program.")
+    except Exception as e:
+        print(f"An error occurred: {e}")
     finally:
         loop.close()
