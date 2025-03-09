@@ -378,6 +378,15 @@ class Quotex:
             await self.auto_trade(self.strategy)
             await asyncio.sleep(60)
 
+    async def get_realtime_price(self, asset):
+        """Get the real-time prices of the asset."""
+        self.api.realtime_price[asset] = []
+        self.start_candles_stream(asset, 60)
+        while True:
+            if self.api.realtime_price.get(asset):
+                return self.api.realtime_price[asset]
+            await asyncio.sleep(1)
+
     def close(self):
         if self.websocket_client:
             self.websocket_client.wss.close()
