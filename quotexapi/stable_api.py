@@ -366,6 +366,12 @@ class Quotex:
         self.api.subscribe_realtime_candle(asset, period)
         self.api.follow_candle(asset)
 
+    def start_realtime_price(self, asset, period=60):
+        """Start monitoring the real-time price of the asset."""
+        self.api.current_asset = asset
+        self.api.subscribe_realtime_candle(asset, period)
+        self.api.follow_candle(asset)
+
     async def monitor_assets(self):
         """ Monitor all assets and apply strategy """
         while True:
