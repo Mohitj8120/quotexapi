@@ -343,18 +343,21 @@ class Quotex:
         self.api.buy_id = None
         request_id = expiration.get_timestamp()
         is_fast_option = True if time_mode.upper() == "TIME" else False
+        expiration_time = expiration.get_expiration_time_quotex(int(time.time()), duration)
         self.start_candles_stream(asset, duration)
         print(f"Executing trade at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        self.api.buy(amount, asset, direction, duration, request_id, is_fast_option)
+        self.api.buy(amount, asset, direction, expiration_time, request_id, is_fast_option)
 
         count = 0.1
         while self.api.buy_id is None:
             count += 0.1
             if count > duration:
                 status_buy = False
+                send_telegram_message("Operation failed!!!")
                 break
             await asyncio.sleep(0.2)
             if global_value.check_websocket_if_error:
+                send_telegram_message(f"Operation failed: {global_value.websocket_error_reason}")
                 return False, global_value.websocket_error_reason
         else:
             status_buy = True

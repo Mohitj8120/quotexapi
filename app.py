@@ -7,6 +7,7 @@ import time
 import random
 import asyncio
 import pyfiglet
+import csv
 import requests
 from datetime import datetime, timezone, timedelta
 from quotexapi.utils.indicators import TechnicalIndicators  # Corrected import statement
@@ -258,6 +259,49 @@ async def trade_and_monitor():
                 # Calculate the expiration time for the trade in UTC
                 expiration_time = datetime.utcnow() + timedelta(seconds=duration)
                 print(f"Expiration Time (UTC): {expiration_time.strftime('%Y-%m-%d %H:%M:%S')}")
+                # Attempt to execute the trade using UTC time
+                status, buy_info = await client.buy(amount, asset_name, direction, duration, time_mode="TIME")
+                if status:
+                    # If the trade was successful, get the open price and close timestamp
+                    open_price = buy_info.get('openPrice')
+                    close_timestamp = buy_info.get('closeTimestamp')
+                    print("Open Price:", open_price)
+
+                    # Wait for the duration of the trade
+                    await asyncio.sleep(duration)
+
+                    # Start monitoring the real-time price of the asset
+                    client.start_realtime_price(asset, 60)
+
+                    # Get the real-time prices of the asset
+                    prices = await client.get_realtime_price(asset_name)
+
+                    if prices:
+                        # Get the current price and timestamp
+                        current_price = prices[-1]['price']
+                        current_timestamp = prices[-1]['time']
+                        print(f"Current Time: {int(current_timestamp)}, Close Time: {close_timestamp}")
+                        print(f"Current Price: {current_price}, Open Price: {open_price}")
+
+                        # Determine the result of the trade
+                        if (direction == "call" and current_price > open_price) or (
+                                direction == "put" and current_price < open_price):
+                            print("Result: WIN")
+                            return 'Win'
+                        elif (direction == "call" and current_price <= open_price) or (
+                                direction == "put" and current_price >= open_price):
+                            print("Result: LOSS")
+                            return 'Loss'
+                        else:
+                            print("Result: DOJI")
+                            return 'Doji'
+                    else:
+                        print("Not a price direction.")
+                else:
+                    print("Operation failed!!!")
+                    print("Buy Info:", buy_info)
+            except Exception as e:
+                print(f"An error occurred during the trade: {e}")
 
                 # Attempt to execute the trade using UTC time
                 status, buy_info = await client.buy(amount, asset_name, direction, duration, time_mode="TIME")
@@ -683,21 +727,6 @@ async def send_telegram_message(message):
     except Exception as e:
         print(f"❌ Telegram Exception: {e}")
 
-async def wait_for_candle_close(client, asset, timeframe=60):
-    """Waits until a new 1-minute candle starts."""
-    offset = timeframe
-    period = timeframe
-    last_candle = await client.get_candles(asset, time.time(), offset, period)
-    if not last_candle:
-        print("⚠️ Error: Could not fetch candle data.")
-        return None
-    last_time = last_candle[-1]['time']
-    while True:
-        candles = await client.get_candles(asset, time.time(), offset, period)
-        if candles and candles[-1]['time'] > last_time:
-            return candles
-        await asyncio.sleep(1)
-
 async def synchronize_time(client):
     """Synchronize local time with Quotex server time."""
     server_time = client.api.timesync.server_timestamp
@@ -709,7 +738,7 @@ async def synchronize_time(client):
         else:
             await asyncio.sleep(abs(time_difference))
 
-async def run_strategy(client, asset="XAUUSD_otc"):
+async def run_strategy(client, asset="NZDCAD_otc"):
     """Executes the Keltner Channel + RSI strategy."""
     check_connect, message = await client.connect()
     if not check_connect:
@@ -719,7 +748,7 @@ async def run_strategy(client, asset="XAUUSD_otc"):
     print(f"🚀 Strategy started for {asset}")
     while True:
         await synchronize_time(client)  # Synchronize time before each trade
-        candles = await wait_for_candle_close(client, asset)
+        candles = await client.get_candles(asset, time.time(), 3600, 60)
         if not candles:
             continue
         
@@ -728,28 +757,101 @@ async def run_strategy(client, asset="XAUUSD_otc"):
             print("📉 Not enough data, waiting...")
             continue
         
+        sma = TechnicalIndicators.calculate_sma(close_prices, 10)
         keltner = TechnicalIndicators.calculate_keltner_channel(close_prices, 20, 10, 1)
         rsi = TechnicalIndicators.calculate_rsi(close_prices, 14)
         latest_price = close_prices[-1]
-        
-        # Latest indicator values
-        latest_keltner_upper = keltner["upper"][-1]
-        latest_keltner_lower = keltner["lower"][-1]
-        latest_rsi = rsi[-1]
+        previous_price = close_prices[-2]
 
-        # Buy Condition
-        if latest_price > latest_keltner_upper and latest_rsi > 50:
+        # Display real-time indicator values
+        print(f"🔍 {asset}: Latest Price: {latest_price}, SMA-10: {sma[-1]}, RSI-14: {rsi[-1]}")
+        print(f"🔍 {asset}: Keltner Middle: {keltner['middle'][-1]}, Upper: {keltner['upper'][-1]}, Lower: {keltner['lower'][-1]}")
+
+        # Check for call direction trade
+        if (
+            50 < rsi[-1] < 60 and
+            previous_price < sma[-2] and latest_price > sma[-1] and
+            (previous_price < keltner["upper"][-2] and latest_price > keltner["upper"][-1] or
+             previous_price < keltner["middle"][-2] and latest_price > keltner["middle"][-1] or
+             previous_price < keltner["lower"][-2] and latest_price > keltner["lower"][-1])
+        ):
             print(f"📈 Buy Signal for {asset} at {latest_price}")
             await send_telegram_message(f"📈 Buy Signal for {asset} at {latest_price}")
-            await client.buy(10, asset, "call", 60)
+            status, buy_info = await client.buy(10, asset, "call", 60, time_mode="TIME")
+            if status:
+                open_price = buy_info.get('openPrice')
+                close_timestamp = buy_info.get('closeTimestamp')
+                print("Open Price:", open_price)
 
-        # Sell Condition
-        elif latest_price < latest_keltner_lower and latest_rsi < 50:
+                # Wait for the duration of the trade
+                await asyncio.sleep(60)
+
+                # Start monitoring the real-time price of the asset
+                client.start_realtime_price(asset, 60)
+
+                # Get the real-time prices of the asset
+                prices = await client.get_realtime_price(asset)
+
+                if prices:
+                    current_price = prices[-1]['price']
+                    current_timestamp = prices[-1]['time']
+                    print(f"Current Time: {int(current_timestamp)}, Close Time: {close_timestamp}")
+                    print(f"Current Price: {current_price}, Open Price: {open_price}")
+
+                    # Determine the result of the trade
+                    if (current_price > open_price):
+                        print("Result: WIN")
+                    else:
+                        print("Result: LOSS")
+                else:
+                    print("Not a price direction.")
+            else:
+                print("Operation failed!!!")
+                print(f"Buy Info: {buy_info}")
+
+        # Check for sell direction trade
+        elif (
+            40 < rsi[-1] < 50 and
+            previous_price > sma[-2] and latest_price < sma[-1] and
+            (previous_price > keltner["upper"][-2] and latest_price < keltner["upper"][-1] or
+             previous_price > keltner["middle"][-2] and latest_price < keltner["middle"][-1] or
+             previous_price > keltner["lower"][-2] and latest_price < keltner["lower"][-1])
+        ):
             print(f"📉 Sell Signal for {asset} at {latest_price}")
             await send_telegram_message(f"📉 Sell Signal for {asset} at {latest_price}")
-            await client.buy(10, asset, "put", 60)
+            status, buy_info = await client.buy(10, asset, "put", 60, time_mode="TIME")
+            if status:
+                open_price = buy_info.get('openPrice')
+                close_timestamp = buy_info.get('closeTimestamp')
+                print("Open Price:", open_price)
+
+                # Wait for the duration of the trade
+                await asyncio.sleep(60)
+
+                # Start monitoring the real-time price of the asset
+                client.start_realtime_price(asset, 60)
+
+                # Get the real-time prices of the asset
+                prices = await client.get_realtime_price(asset)
+
+                if prices:
+                    current_price = prices[-1]['price']
+                    current_timestamp = prices[-1]['time']
+                    print(f"Current Time: {int(current_timestamp)}, Close Time: {close_timestamp}")
+                    print(f"Current Price: {current_price}, Open Price: {open_price}")
+
+                    # Determine the result of the trade
+                    if (current_price < open_price):
+                        print("Result: WIN")
+                    else:
+                        print("Result: LOSS")
+                else:
+                    print("Not a price direction.")
+            else:
+                print("Operation failed!!!")
+                print(f"Buy Info: {buy_info}")
         
-        await asyncio.sleep(1)
+        await asyncio.sleep(1)  # Update every second
 
 async def test_strategy():
     check_connect, message = await client.connect()
@@ -767,7 +869,7 @@ async def test_strategy():
 
         while True:
             # Wait for the current 1-minute candle to close
-            candles = await wait_for_candle_close(client, asset)
+            candles = await client.get_candles(asset, time.time(), 3600, 60)
             if not candles:
                 print("Failed to fetch candles.")
                 return
@@ -853,6 +955,8 @@ async def execute(argument):
             return await assets_open()
         case "get_all_assets":
             return await get_all_assets()
+        case "sell_option":
+            return await sell_option()
         case "get_candle":
             return await get_candle()
         case "get_candle_v2":
