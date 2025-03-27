@@ -390,6 +390,15 @@ class Quotex:
                 return self.api.realtime_price[asset]
             await asyncio.sleep(1)
 
+    async def get_current_price(self, asset: str):
+        """Fetch the current price of the specified asset."""
+        self.api.realtime_price[asset] = []
+        self.start_candles_stream(asset, 60)
+        while True:
+            if self.api.realtime_price.get(asset):
+                return self.api.realtime_price[asset][-1]['price']
+            await asyncio.sleep(0.1)
+
     def close(self):
         if self.websocket_client:
             self.websocket_client.wss.close()

@@ -752,14 +752,13 @@ async def run_strategy(client, asset="USDEGP_otc"):
         next_candle_time = (now // 60 + 1) * 60  # Align to next minute
         await asyncio.sleep(next_candle_time - now)  # Wait until next candle
 
-        # ✅ Fetch OPEN price and indicators immediately at the start of the candle
+        # ✅ Fetch OPEN price at exact xx:00
+        open_price = await client.get_current_price(asset)
         candles = await client.get_candles(asset, time.time(), 3600, 60)
         if not candles or len(candles) < 20:
             print("📉 Not enough data, waiting...")
             continue
 
-        current_candle = candles[-1]  # Latest candle (correct one now)
-        open_price = current_candle['open']
         close_prices = [candle['close'] for candle in candles]
         sma = TechnicalIndicators.calculate_sma(close_prices, 10)
         keltner = TechnicalIndicators.calculate_keltner_channel(close_prices, 20, 10, 1)
@@ -771,19 +770,9 @@ async def run_strategy(client, asset="USDEGP_otc"):
 
         print(f"🟢 Open {asset} | Price: {open_price}, SMA: {sma[-1]}, RSI: {rsi[-1]}, Keltner: {keltner['middle'][-1]}")
 
-        # ✅ Wait for candle to close (without additional delay after close print)
+        # ✅ Wait till xx:59 and fetch real-time close price
         await asyncio.sleep(59)
-        
-        candles = await client.get_candles(asset, time.time(), 3600, 60)
-        if not candles or len(candles) < 20:
-            print("📉 Not enough data after close, waiting...")
-            continue
-
-        latest_candle = candles[-1]  # Ensure we get the latest closing values
-        close_price = latest_candle['close']
-        sma = TechnicalIndicators.calculate_sma(close_prices, 10)
-        keltner = TechnicalIndicators.calculate_keltner_channel(close_prices, 20, 10, 1)
-        rsi = TechnicalIndicators.calculate_rsi(close_prices, 14)
+        close_price = await client.get_current_price(asset)  # ✅ Real-time close price at xx:59
 
         print(f"🔴 Close {asset} | Price: {close_price}, SMA: {sma[-1]}, RSI: {rsi[-1]}, Keltner: {keltner['middle'][-1]}")
 
