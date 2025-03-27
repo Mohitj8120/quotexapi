@@ -748,82 +748,64 @@ async def run_strategy(client, asset="USDEGP_otc"):
     print(f"🚀 Strategy started for {asset}")
 
     while True:
-        await synchronize_time(client)  # Sync time with server
+        now = time.time()
+        next_candle_time = (now // 60 + 1) * 60  # Align to next minute
+        await asyncio.sleep(next_candle_time - now)  # Wait until next candle
 
-        # ✅ हर सेकंड monitor करो
+        # ✅ Fetch OPEN price and indicators immediately at the start of the candle
         candles = await client.get_candles(asset, time.time(), 3600, 60)
-        if not candles:
-            continue
-        
-        current_candle = candles[-1]  # अभी बन रही candle
-        previous_candle = candles[-2]  # पिछली पूरी हुई candle
-        close_prices = [candle['close'] for candle in candles]
-
-        # 🔴 अगर data पूरा नहीं आया, तो wait करो
-        if len(close_prices) < 20:
+        if not candles or len(candles) < 20:
             print("📉 Not enough data, waiting...")
-            await asyncio.sleep(1)
             continue
-        
-        # ✅ हर सेकंड latest price log करो
-        latest_price = current_candle['close']
-        print(f"🕒 Monitoring {asset} - Latest Price: {latest_price}")
 
-        # ✅ अगर candle close नहीं हुई, तो wait करो
-        if time.time() < current_candle['time'] + 60:  # Adjusted to use 'time' and add 60 seconds for close time
-            await asyncio.sleep(1)
-            continue  # अगली second फिर से monitor करो
-        
-        # ✅ Candle Close होने के तुरंत बाद Final Values Calculate करो
-        print(f"✅ {asset} - Candle Closed! Fetching Final Values...")
+        current_candle = candles[-1]  # Latest candle (correct one now)
+        open_price = current_candle['open']
+        close_prices = [candle['close'] for candle in candles]
         sma = TechnicalIndicators.calculate_sma(close_prices, 10)
         keltner = TechnicalIndicators.calculate_keltner_channel(close_prices, 20, 10, 1)
         rsi = TechnicalIndicators.calculate_rsi(close_prices, 14)
 
         if not sma or not rsi or not keltner:
             print(f"⚠️ Indicator calculation failed for {asset}")
-            await asyncio.sleep(1)
             continue
 
-        print(f"🔍 {asset}: Final SMA-10: {sma[-1]}, RSI-14: {rsi[-1]}")
-        print(f"🔍 {asset}: Keltner Middle: {keltner['middle'][-1]}, Upper: {keltner['upper'][-1]}, Lower: {keltner['lower'][-1]}")
+        print(f"🟢 Open {asset} | Price: {open_price}, SMA: {sma[-1]}, RSI: {rsi[-1]}, Keltner: {keltner['middle'][-1]}")
 
-        # ✅ Strategy Apply करो और तुरंत Trade लो
+        # ✅ Wait for candle to close (without additional delay after close print)
+        await asyncio.sleep(59)
+        
+        candles = await client.get_candles(asset, time.time(), 3600, 60)
+        if not candles or len(candles) < 20:
+            print("📉 Not enough data after close, waiting...")
+            continue
+
+        latest_candle = candles[-1]  # Ensure we get the latest closing values
+        close_price = latest_candle['close']
+        sma = TechnicalIndicators.calculate_sma(close_prices, 10)
+        keltner = TechnicalIndicators.calculate_keltner_channel(close_prices, 20, 10, 1)
+        rsi = TechnicalIndicators.calculate_rsi(close_prices, 14)
+
+        print(f"🔴 Close {asset} | Price: {close_price}, SMA: {sma[-1]}, RSI: {rsi[-1]}, Keltner: {keltner['middle'][-1]}")
+
+        # ✅ Apply strategy on the same candle
         if (
             50 < rsi[-1] < 60 and
-            previous_candle['close'] < sma[-2] and latest_price > sma[-1] and
-            (previous_candle['close'] < keltner["upper"][-2] and latest_price > keltner["upper"][-1] or
-             previous_candle['close'] < keltner["middle"][-2] and latest_price > keltner["middle"][-1] or
-             previous_candle['close'] < keltner["lower"][-2] and latest_price > keltner["lower"][-1])
+            open_price < sma[-1] and close_price > max(keltner["upper"][-1], keltner["middle"][-1], keltner["lower"][-1])
         ):
-            print(f"📈 Buy Signal for {asset} at {latest_price}")
-            await send_telegram_message(f"📈 Buy Signal for {asset} at {latest_price}")
-            status, buy_info = await client.buy(10, asset, "call", 60, time_mode="TIME")
-            if status:
-                print("✅ Trade Placed Successfully!")
-            else:
-                print("❌ Trade Failed!")
+            print(f"📈 Buy Signal for {asset} at {close_price}")
+            await send_telegram_message(f"📈 Buy Signal for {asset} at {close_price}")
+            await client.buy(10, asset, "call", 60, time_mode="TIME")
 
         elif (
             40 < rsi[-1] < 50 and
-            previous_candle['close'] > sma[-2] and latest_price < sma[-1] and
-            (previous_candle['close'] > keltner["upper"][-2] and latest_price < keltner["upper"][-1] or
-             previous_candle['close'] > keltner["middle"][-2] and latest_price < keltner["middle"][-1] or
-             previous_candle['close'] > keltner["lower"][-2] and latest_price < keltner["lower"][-1])
+            open_price > sma[-1] and close_price < min(keltner["upper"][-1], keltner["middle"][-1], keltner["lower"][-1])
         ):
-            print(f"📉 Sell Signal for {asset} at {latest_price}")
-            await send_telegram_message(f"📉 Sell Signal for {asset} at {latest_price}")
-            status, buy_info = await client.buy(10, asset, "put", 60, time_mode="TIME")
-            if status:
-                print("✅ Trade Placed Successfully!")
-            else:
-                print("❌ Trade Failed!")
+            print(f"📉 Sell Signal for {asset} at {close_price}")
+            await send_telegram_message(f"📉 Sell Signal for {asset} at {close_price}")
+            await client.buy(10, asset, "put", 60, time_mode="TIME")
 
-        # ✅ Strategy apply नहीं हुई, तो अगले candle का wait करो
         else:
             print("⏳ No valid trade setup, monitoring next candle...")
-
-        await asyncio.sleep(1)  # हर सेकंड check करना जारी रखो
 
 async def test_strategy():
     check_connect, message = await client.connect()
