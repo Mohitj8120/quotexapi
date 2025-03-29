@@ -738,7 +738,7 @@ async def synchronize_time(client):
         else:
             await asyncio.sleep(abs(time_difference))
 
-async def run_strategy(client, asset="USDEGP_otc"):
+async def run_strategy(client, asset="USDDZD_otc"):
     """Executes the Keltner Channel + RSI strategy at the right candle close time."""
     check_connect, message = await client.connect()
     if not check_connect:
@@ -749,10 +749,9 @@ async def run_strategy(client, asset="USDEGP_otc"):
 
     while True:
         now = time.time()
-        next_candle_time = (now // 60 + 1) * 60  # Align to next minute
-        await asyncio.sleep(next_candle_time - now)  # Wait until next candle
+        next_candle_time = (now // 60 + 1) * 60
+        await asyncio.sleep(next_candle_time - now)
 
-        # ✅ Fetch OPEN price at exact xx:00
         open_price = await client.get_current_price(asset)
         candles = await client.get_candles(asset, time.time(), 3600, 60)
         if not candles or len(candles) < 20:
@@ -768,26 +767,46 @@ async def run_strategy(client, asset="USDEGP_otc"):
             print(f"⚠️ Indicator calculation failed for {asset}")
             continue
 
-        print(f"🟢 Open {asset} | Price: {open_price}, SMA: {sma[-1]}, RSI: {rsi[-1]}, Keltner: {keltner['middle'][-1]}")
+        print(f"🟢 Open {asset} | Price: {open_price}, SMA: {sma[-1]}, RSI: {rsi[-1]}, Keltner: {keltner['middle'][-1]}, Upper: {keltner['upper'][-1]}, Lower: {keltner['lower'][-1]}")
 
-        # ✅ Wait till xx:59 and fetch real-time close price
         await asyncio.sleep(59)
-        close_price = await client.get_current_price(asset)  # ✅ Real-time close price at xx:59
+        close_price = await client.get_current_price(asset)
 
-        print(f"🔴 Close {asset} | Price: {close_price}, SMA: {sma[-1]}, RSI: {rsi[-1]}, Keltner: {keltner['middle'][-1]}")
+        candles = await client.get_candles(asset, time.time(), 3600, 60)
+        if candles:
+            close_prices = [candle['close'] for candle in candles]
+            sma = TechnicalIndicators.calculate_sma(close_prices, 10)
+            keltner = TechnicalIndicators.calculate_keltner_channel(close_prices, 20, 10, 1)
+            rsi = TechnicalIndicators.calculate_rsi(close_prices, 14)
 
-        # ✅ Apply strategy on the same candle
+        print(f"🔴 Close {asset} | Price: {close_price}, SMA: {sma[-1]}, RSI: {rsi[-1]}, Keltner: {keltner['middle'][-1]}, Upper: {keltner['upper'][-1]}, Lower: {keltner['lower'][-1]}")
+
+        sma_val = sma[-1]
+        rsi_val = rsi[-1]
+        upper = keltner['upper'][-1]
+        middle = keltner['middle'][-1]
+        lower = keltner['lower'][-1]
+
+        def count_keltner_cross(price, bands):
+            return sum([price > band for band in bands]) if price > sma_val else sum([price < band for band in bands])
+
+        bands = [lower, middle, upper]
+
         if (
-            50 < rsi[-1] < 60 and
-            open_price < sma[-1] and close_price > max(keltner["upper"][-1], keltner["middle"][-1], keltner["lower"][-1])
+            open_price < sma_val and
+            close_price > sma_val and
+            count_keltner_cross(close_price, bands) == 1 and
+            50 < rsi_val < 60
         ):
             print(f"📈 Buy Signal for {asset} at {close_price}")
             await send_telegram_message(f"📈 Buy Signal for {asset} at {close_price}")
             await client.buy(10, asset, "call", 60, time_mode="TIME")
 
         elif (
-            40 < rsi[-1] < 50 and
-            open_price > sma[-1] and close_price < min(keltner["upper"][-1], keltner["middle"][-1], keltner["lower"][-1])
+            open_price > sma_val and
+            close_price < sma_val and
+            count_keltner_cross(close_price, bands) == 1 and
+            40 < rsi_val < 50
         ):
             print(f"📉 Sell Signal for {asset} at {close_price}")
             await send_telegram_message(f"📉 Sell Signal for {asset} at {close_price}")
