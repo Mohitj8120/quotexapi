@@ -745,13 +745,13 @@ async def live_utc_clock():
         print(f"⏰ {utc_now}", end='\r', flush=True)
         await asyncio.sleep(1)
 
-async def run_strategy(client, asset="USDPHP_otc"):
+async def run_strategy(client, asset="USDARS_otc"):
     check_connect, message = await client.connect()
     if not check_connect:
         print(f"Error connecting to client: {message}")
         return
 
-    print(f"\U0001F680 Strategy started for {asset}")
+    print(f"\n🚀 Strategy started for {asset}\n")
     asyncio.create_task(live_utc_clock())  # Start live clock in background
 
     while True:
@@ -759,48 +759,105 @@ async def run_strategy(client, asset="USDPHP_otc"):
         next_candle_time = (now // 60 + 1) * 60
         await asyncio.sleep(next_candle_time - now)
 
-        # Fetch Open Price and Print Immediately
+        # Fetch Open Price and Indicators
         open_price = await client.get_current_price(asset)
+        open_candles = await client.get_candles(asset, time.time(), 3600, 60)
+        if not open_candles or len(open_candles) < 20:
+            print("\n📉 Not enough data, waiting...\n")
+            continue
+
+        open_close_prices = [candle['close'] for candle in open_candles]
+        open_sma = TechnicalIndicators.calculate_sma(open_close_prices, 10)
+        open_keltner = TechnicalIndicators.calculate_keltner_channel(open_close_prices, 20, 10, 1)
+        open_rsi = TechnicalIndicators.calculate_rsi(open_close_prices, 14)
+
+        if not open_sma or not open_rsi or not open_keltner:
+            print(f"\n⚠️ Open Indicator calculation failed for {asset}\n")
+            continue
+
+        open_upper_band, open_middle_band, open_lower_band = (
+            open_keltner['upper'][-1],
+            open_keltner['middle'][-1],
+            open_keltner['lower'][-1],
+        )
+        last_open_sma = open_sma[-1]
+        last_open_rsi = open_rsi[-1]
+
         open_timestamp = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
-        
-        candles = await client.get_candles(asset, time.time(), 3600, 60)
-        if not candles or len(candles) < 20:
-            print("\U0001F4C9 Not enough data, waiting...")
-            continue
 
-        close_prices = [candle['close'] for candle in candles]
-        sma = TechnicalIndicators.calculate_sma(close_prices, 10)
-        keltner = TechnicalIndicators.calculate_keltner_channel(close_prices, 20, 10, 1)
-        rsi = TechnicalIndicators.calculate_rsi(close_prices, 14)
+        print(
+            f"\n🟢 Open {asset} | Open Price: {open_price}, SMA: {last_open_sma}, RSI: {last_open_rsi}, "
+            f"Upper: {open_upper_band}, Middle: {open_middle_band}, Lower: {open_lower_band} | Timestamp: {open_timestamp}"
+        )
 
-        if not sma or not rsi or not keltner:
-            print(f"⚠️ Indicator calculation failed for {asset}")
-            continue
-
-        upper_band, middle_band, lower_band = keltner['upper'][-1], keltner['middle'][-1], keltner['lower'][-1]
-        last_sma = sma[-1]
-        last_rsi = rsi[-1]
-
-        print(f"🟢 Open {asset} | Open Price: {open_price}, SMA: {last_sma}, RSI: {last_rsi}, Upper: {upper_band}, Middle: {middle_band}, Lower: {lower_band} | Timestamp: {open_timestamp}")
-        
         await asyncio.sleep(59)  # Wait for candle to close
 
-        # Fetch Close Price and Print Immediately
+        # Fetch Close Price and Indicators
         close_price = await client.get_current_price(asset)
+        close_candles = await client.get_candles(asset, time.time(), 3600, 60)
+        if not close_candles or len(close_candles) < 20:
+            print("\n📉 Not enough data for close price, waiting...\n")
+            continue
+
+        close_close_prices = [candle['close'] for candle in close_candles]
+        close_sma = TechnicalIndicators.calculate_sma(close_close_prices, 10)
+        close_keltner = TechnicalIndicators.calculate_keltner_channel(close_close_prices, 20, 10, 1)
+        close_rsi = TechnicalIndicators.calculate_rsi(close_close_prices, 14)
+
+        if not close_sma or not close_rsi or not close_keltner:
+            print(f"\n⚠️ Close Indicator calculation failed for {asset}\n")
+            continue
+
+        close_upper_band, close_middle_band, close_lower_band = (
+            close_keltner['upper'][-1],
+            close_keltner['middle'][-1],
+            close_keltner['lower'][-1],
+        )
+        last_close_sma = close_sma[-1]
+        last_close_rsi = close_rsi[-1]
+
         close_timestamp = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
-        
-        print(f"🔴 Close {asset} | Close Price: {close_price}, SMA: {last_sma}, RSI: {last_rsi}, Upper: {upper_band}, Middle: {middle_band}, Lower: {lower_band} | Timestamp: {close_timestamp}")
 
-        # BUY Condition
-        if open_price < last_sma and close_price > last_sma and (lower_band < close_price < middle_band or middle_band < close_price < upper_band) and 50 <= last_rsi <= 60:
-            print(f"✅ BUY Signal! Executing trade for {asset}")
-            await client.place_order(asset, "BUY", amount=1, expiry=60)
-        
-        # SELL Condition
-        elif open_price > last_sma and close_price < last_sma and (middle_band > close_price > lower_band or upper_band > close_price > middle_band) and 40 <= last_rsi <= 50:
-            print(f"✅ SELL Signal! Executing trade for {asset}")
-            await client.place_order(asset, "SELL", amount=1, expiry=60)
+        print(
+            f"\n🔴 Close {asset} | Close Price: {close_price}, SMA: {last_close_sma}, RSI: {last_close_rsi}, "
+            f"Upper: {close_upper_band}, Middle: {close_middle_band}, Lower: {close_lower_band} | Timestamp: {close_timestamp}"
+        )
 
+        # **BUY Condition**
+        if (
+            open_price < last_open_sma and close_price > last_close_sma and
+            (close_price > close_lower_band or close_price > close_middle_band or close_price > close_upper_band) and
+            50 <= last_close_rsi <= 60
+        ):
+            print(f"\n✅ BUY Signal! Executing trade for {asset}\n")
+            response = await client.buy(asset, "call", amount=1, expiry=60)
+
+            msg = (
+                f"✅ BUY Executed: {asset} at {close_price} | SMA: {last_close_sma}, RSI: {last_close_rsi}"
+                if response.get("success")
+                else f"⚠️ BUY Failed: {asset} | Reason: {response.get('error', 'Unknown Error')}"
+            )
+
+            print(msg)
+            await send_telegram_message(msg)
+
+        # **SELL Condition**
+        elif (
+            open_price > last_open_sma and close_price < last_close_sma and
+            (close_price < close_lower_band or close_price < close_middle_band or close_price < close_upper_band) and
+            40 <= last_close_rsi <= 50
+        ):
+            print(f"\n✅ SELL Signal! Executing trade for {asset}\n")
+            response = await client.buy(asset, "put", amount=1, expiry=60)
+
+            msg = (
+                f"✅ SELL Executed: {asset} at {close_price} | SMA: {last_close_sma}, RSI: {last_close_rsi}"
+                if response.get("success")
+                else f"⚠️ SELL Failed: {asset} | Reason: {response.get('error', 'Unknown Error')}"
+            )
+
+            print(msg)
+            await send_telegram_message(msg)
 
 async def test_strategy():
     check_connect, message = await client.connect()
