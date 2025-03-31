@@ -776,16 +776,29 @@ async def run_strategy(client, asset="USDDZD_otc"):
             print(f"⚠️ Indicator calculation failed for {asset}")
             continue
 
-        print(f"🟢 Open {asset} | Price: {open_price}, SMA: {sma[-1]}, RSI: {rsi[-1]}, Keltner: {keltner['middle'][-1]}, Upper: {keltner['upper'][-1]}, Lower: {keltner['lower'][-1]} | Timestamp: {open_timestamp}")
+        upper_band, middle_band, lower_band = keltner['upper'][-1], keltner['middle'][-1], keltner['lower'][-1]
+        last_sma = sma[-1]
+        last_rsi = rsi[-1]
 
         await asyncio.sleep(59)
         close_price = await client.get_current_price(asset)
         close_timestamp = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
 
-        print(f"🔴 Close {asset} | Price: {close_price}, SMA: {sma[-1]}, RSI: {rsi[-1]}, Keltner: {keltner['middle'][-1]}, Upper: {keltner['upper'][-1]}, Lower: {keltner['lower'][-1]} | Timestamp: {close_timestamp}")
+        print(f"🟢 Open {asset} | Open Price: {open_price}, Close Price: {close_price}, SMA: {last_sma}, RSI: {last_rsi}, Upper: {upper_band}, Middle: {middle_band}, Lower: {lower_band} | Timestamp: {open_timestamp}")
+
+        # BUY Condition
+        if open_price < last_sma and close_price > last_sma and (lower_band < close_price < middle_band or middle_band < close_price < upper_band) and 50 <= last_rsi <= 60:
+            print(f"✅ BUY Signal! Executing trade for {asset}")
+            await client.place_order(asset, "BUY", amount=1, expiry=60)
         
-        # Trading logic remains the same
-        # ...
+        # SELL Condition
+        elif open_price > last_sma and close_price < last_sma and (middle_band > close_price > lower_band or upper_band > close_price > middle_band) and 40 <= last_rsi <= 50:
+            print(f"✅ SELL Signal! Executing trade for {asset}")
+            await client.place_order(asset, "SELL", amount=1, expiry=60)
+        
+        print(f"🔴 Close {asset} | Price: {close_price} | Timestamp: {close_timestamp}")
+
+        
 async def test_strategy():
     check_connect, message = await client.connect()
     if check_connect:
