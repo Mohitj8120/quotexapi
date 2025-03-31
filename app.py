@@ -745,13 +745,13 @@ async def live_utc_clock():
         print(f"⏰ {utc_now}", end='\r', flush=True)
         await asyncio.sleep(1)
 
-async def run_strategy(client, asset="USDDZD_otc"):
+async def run_strategy(client, asset="USDPHP_otc"):
     check_connect, message = await client.connect()
     if not check_connect:
         print(f"Error connecting to client: {message}")
         return
 
-    print(f"🚀 Strategy started for {asset}")
+    print(f"\U0001F680 Strategy started for {asset}")
     asyncio.create_task(live_utc_clock())  # Start live clock in background
 
     while True:
@@ -759,12 +759,13 @@ async def run_strategy(client, asset="USDDZD_otc"):
         next_candle_time = (now // 60 + 1) * 60
         await asyncio.sleep(next_candle_time - now)
 
+        # Fetch Open Price and Print Immediately
         open_price = await client.get_current_price(asset)
         open_timestamp = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
-
+        
         candles = await client.get_candles(asset, time.time(), 3600, 60)
         if not candles or len(candles) < 20:
-            print("📉 Not enough data, waiting...")
+            print("\U0001F4C9 Not enough data, waiting...")
             continue
 
         close_prices = [candle['close'] for candle in candles]
@@ -780,11 +781,15 @@ async def run_strategy(client, asset="USDDZD_otc"):
         last_sma = sma[-1]
         last_rsi = rsi[-1]
 
-        await asyncio.sleep(59)
+        print(f"🟢 Open {asset} | Open Price: {open_price}, SMA: {last_sma}, RSI: {last_rsi}, Upper: {upper_band}, Middle: {middle_band}, Lower: {lower_band} | Timestamp: {open_timestamp}")
+        
+        await asyncio.sleep(59)  # Wait for candle to close
+
+        # Fetch Close Price and Print Immediately
         close_price = await client.get_current_price(asset)
         close_timestamp = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
-
-        print(f"🟢 Open {asset} | Open Price: {open_price}, Close Price: {close_price}, SMA: {last_sma}, RSI: {last_rsi}, Upper: {upper_band}, Middle: {middle_band}, Lower: {lower_band} | Timestamp: {open_timestamp}")
+        
+        print(f"🔴 Close {asset} | Close Price: {close_price}, SMA: {last_sma}, RSI: {last_rsi}, Upper: {upper_band}, Middle: {middle_band}, Lower: {lower_band} | Timestamp: {close_timestamp}")
 
         # BUY Condition
         if open_price < last_sma and close_price > last_sma and (lower_band < close_price < middle_band or middle_band < close_price < upper_band) and 50 <= last_rsi <= 60:
@@ -795,10 +800,8 @@ async def run_strategy(client, asset="USDDZD_otc"):
         elif open_price > last_sma and close_price < last_sma and (middle_band > close_price > lower_band or upper_band > close_price > middle_band) and 40 <= last_rsi <= 50:
             print(f"✅ SELL Signal! Executing trade for {asset}")
             await client.place_order(asset, "SELL", amount=1, expiry=60)
-        
-        print(f"🔴 Close {asset} | Price: {close_price} | Timestamp: {close_timestamp}")
 
-        
+
 async def test_strategy():
     check_connect, message = await client.connect()
     if check_connect:
