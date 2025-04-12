@@ -759,6 +759,7 @@ async def run_strategy(client, asset="USDARS_otc"):
         next_candle_time = (now // 60 + 1) * 60
         await asyncio.sleep(next_candle_time - now)
 
+
         # Fetch Open Price and Indicators
         open_price = await client.get_current_price(asset)
         open_candles = await client.get_candles(asset, time.time(), 3600, 60)
@@ -830,13 +831,16 @@ async def run_strategy(client, asset="USDARS_otc"):
             50 <= last_close_rsi <= 60
         ):
             print(f"\n✅ BUY Signal! Executing trade for {asset}\n")
-            response = await client.buy(asset, "call", amount=1, expiry=60)
+            status, buy_info = await client.buy(1, asset, "call", 60)  # Fixed argument order
 
-            msg = (
-                f"✅ BUY Executed: {asset} at {close_price} | SMA: {last_close_sma}, RSI: {last_close_rsi}"
-                if response.get("success")
-                else f"⚠️ BUY Failed: {asset} | Reason: {response.get('error', 'Unknown Error')}"
-            )
+            if isinstance(buy_info, dict):  # Ensure buy_info is a dictionary
+                msg = (
+                    f"✅ BUY Executed: {asset} at {close_price} | SMA: {last_close_sma}, RSI: {last_close_rsi}"
+                    if status
+                    else f"⚠️ BUY Failed: {asset} | Reason: {buy_info.get('error', 'Unknown Error')}"
+                )
+            else:
+                msg = f"⚠️ BUY Failed: {asset} | Invalid response format: {buy_info}"
 
             print(msg)
             await send_telegram_message(msg)
@@ -848,13 +852,16 @@ async def run_strategy(client, asset="USDARS_otc"):
             40 <= last_close_rsi <= 50
         ):
             print(f"\n✅ SELL Signal! Executing trade for {asset}\n")
-            response = await client.buy(asset, "put", amount=1, expiry=60)
+            status, buy_info = await client.buy(1, asset, "put", 60)  # Fixed argument order
 
-            msg = (
-                f"✅ SELL Executed: {asset} at {close_price} | SMA: {last_close_sma}, RSI: {last_close_rsi}"
-                if response.get("success")
-                else f"⚠️ SELL Failed: {asset} | Reason: {response.get('error', 'Unknown Error')}"
-            )
+            if isinstance(buy_info, dict):  # Ensure buy_info is a dictionary
+                msg = (
+                    f"✅ SELL Executed: {asset} at {close_price} | SMA: {last_close_sma}, RSI: {last_close_rsi}"
+                    if status
+                    else f"⚠️ SELL Failed: {asset} | Reason: {buy_info.get('error', 'Unknown Error')}"
+                )
+            else:
+                msg = f"⚠️ SELL Failed: {asset} | Invalid response format: {buy_info}"
 
             print(msg)
             await send_telegram_message(msg)
